@@ -8,6 +8,18 @@ import cv2
 import numpy as np
 from colorama import Fore, Style, Back
 import face_recognition
+import math
+
+
+def face_confidence(face_distance, face_match_threshold=0.6):
+    range = (1.0 - face_match_threshold)
+    linear_val = (1.0 - face_distance) / (range * 2.0)
+
+    if face_distance > face_match_threshold:
+        return linear_val * 100
+    else:
+        value = (linear_val + ((1.0 - linear_val) * math.pow((linear_val - 0.5) * 2, 0.2))) * 100
+        return value
 
 
 class BoundingBox:
@@ -53,12 +65,25 @@ class Detection(BoundingBox):
         self.assigned_to_tracker = False
         # See if the face is a match for the known face(s)
         found_face = face_recognition.compare_faces(our_faces, face_encoding)
-        self.person = 'new name'
         
         face_distances = face_recognition.face_distance(our_faces, face_encoding)
         match_id = np.argmin(face_distances)
         if found_face[match_id]:
-            self.person = our_names[match_id]
+            confidence = face_confidence(face_distances[match_id])
+            if confidence > 80:
+                self.person = our_names[match_id]
+            else:
+                person = input('Hello what s your name?')
+                self.person = str(person)
+                our_names.append(person)
+                our_faces.append(face_encoding)
+
+        else:
+            person = input('Hello what s your name?')
+            self.person = str(person)
+            our_names.append(person)
+            our_faces.append(face_encoding)
+
 
     def draw(self, image_gui, color=(255,0,0)):
         cv2.rectangle(image_gui,(self.x1,self.y1),(self.x2, self.y2),color,3)

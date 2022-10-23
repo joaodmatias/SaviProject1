@@ -4,17 +4,40 @@ from copy import deepcopy
 import cv2
 from functions import Detection, Tracker
 import face_recognition
+import os, sys
 
 
 #Import train
-matias = face_recognition.load_image_file(f'faces\Matias.jpg')
-matias_encoding = face_recognition.face_encodings(matias)[0]
+# matias = face_recognition.load_image_file(f'faces\Matias.jpg')
+# matias_encoding = face_recognition.face_encodings(matias)[0]
 
-vicente = face_recognition.load_image_file(f"faces\Vicente.jpg")
-vicente_encoding = face_recognition.face_encodings(vicente)[0]
+# vicente = face_recognition.load_image_file(f"faces\Vicente.jpg")
+# vicente_encoding = face_recognition.face_encodings(vicente)[0]
 
-our_faces = [matias_encoding, vicente_encoding]
-our_names = ['Matias', 'Vicente']
+# our_faces = [matias_encoding, vicente_encoding]
+# our_names = ['Matias', 'Vicente']
+
+
+# Helper #make de %of confidence is the person based on photos
+def face_confidence(face_distance, face_match_threshold=0.6):
+    range = (1.0 - face_match_threshold)
+    linear_val = (1.0 - face_distance) / (range * 2.0)
+
+    if face_distance > face_match_threshold:
+        return str(round(linear_val * 100, 2)) + '%'
+    else:
+        value = (linear_val + ((1.0 - linear_val) * math.pow((linear_val - 0.5) * 2, 0.2))) * 100
+        return str(round(value, 2)) + '%'
+
+
+path = "faces"
+our_names = []
+our_faces = []
+for image in os.listdir(path):
+    face_image = face_recognition.load_image_file(f"faces\{image}")
+    face_encoding = face_recognition.face_encodings(face_image)[0]
+    our_names.append(image)
+    our_faces.append(face_encoding)
 
 #essential variables
 face_locations = []
