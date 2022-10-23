@@ -4,7 +4,7 @@ import numpy  as np
 import cv2 as cv
 import face_recognition
 
-from functions import Detection
+# from functions import Detection
 
 def main():
 
@@ -19,10 +19,10 @@ def main():
     width_height = (800,600)
     
     #Recognizes face templates (do this for adding a person)
-    matias = face_recognition.load_image_file("Matias.jpg")
+    matias = face_recognition.load_image_file("C:\Escola\savi\SaviProject1\Matias.jpg")
     matias_encoding = face_recognition.face_encodings(matias)[0]
     
-    vicente = face_recognition.load_image_file("Vicente.jpg")
+    vicente = face_recognition.load_image_file("C:\Escola\savi\SaviProject1\Vicente.jpg")
     vicente_encoding = face_recognition.face_encodings(vicente)[0]
     
     our_faces = [matias_encoding, vicente_encoding]

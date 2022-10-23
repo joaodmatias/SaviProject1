@@ -1,137 +1,126 @@
-from asyncio.constants import SSL_HANDSHAKE_TIMEOUT
 import cv2 as cv
-from cv2 import COLOR_BGR2GRAY
 import numpy as np
-from turtle import color
 from copy import deepcopy
-import face_recognition
+import cv2
+from functions import Detection, Tracker
 
-haar_cascade = cv.CascadeClassifier('Trabalho1\haar_face.xml')
+#Definir haar cascade
+haar_cascade = cv.CascadeClassifier(r'Trabalho1\haar_face.xml')
 
-joao = cv.imread('Trabalho1\joao.jpg')
-joao_gray = cv.cvtColor(joao, cv.COLOR_BGR2RGB)
-joao_rect = haar_cascade.detectMultiScale(joao_gray, scaleFactor=1.1, minNeighbors=4, minSize=(150,150))
-#x, y, w, h = joao_rect
-#joao_roi = joao_gray[y:y+h, x:x+w]
-for (x,y,w,h) in joao_rect:
-    joao_roi = joao_gray[y:y+h, x:x+w]
-joao_enc = face_recognition.face_encodings(joao_roi)
+#Import train
+people = ['Joao', 'Matias']
+face_recognizer = cv.face.LBPHFaceRecognizer_create()
+face_recognizer.read(r'Trabalho1\face_trained.yml')
 
-capture = cv.VideoCapture(0)
+#essential variables
+detection_counter = 0
+tracker_counter = 0
+trackers = []
+iou_threshold = 0.8
 
-bbox_last_frame = []
+#Execution
+cap = cv.VideoCapture(0)
 
-count = 0
-track_id = 0
-tracking_ppl = {}
-
+frame_counter = 0
 while True:
-    ret, frame = capture.read()
-    count +=1
-    gray = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-    bbox = haar_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=10, minSize=(40,40))
+    #Get the frame
+    ret, frame_rgb = cap.read()
+    frame = cv.flip(frame_rgb, 1)
+    frame_counter +=1
+    image_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
     image_gui = deepcopy(frame)
-    bbox_cur_frame = [] 
 
-    for (x,y,w,h) in bbox:    #Put all the bboxes's coordinates found on the frame in an array and design a box arround it
-        bbox_cur_frame.append((x,y,w,h))
-        face_roi = gray[y:y+w, x:x+h]
-        face_enc = face_recognition.face_encodings(face_roi)
-        cv.rectangle(image_gui, (x,y), (x+w,y+h), (0,0,255), 2)
-        result = face_recognition.compare_faces(joao_enc, face_enc)
-        if result:
-            cv.rectangle(image_gui, (x,y), (x+w,y+h), (0,255,0), 2)
-        else:
-            cv.rectangle(image_gui, (x,y), (x+w,y+h), (0,0,255), 2)
+    if ret == False:
+        break
+    stamp = float(cap.get(cv2.CAP_PROP_POS_MSEC))/1000
 
 
-    if count <= 2:
-        # Compare the area that is coincident with the bbox from last frame and the current frame
-        for b1 in bbox_cur_frame:
-            for b2 in bbox_last_frame:
-                x1_intr = min(b1[0], b2[0])             
-                y1_intr = min(b1[1], b2[1])             
-                x2_intr = max(b1[0] + b1[2], b2[0] + b2[2]) 
-                y2_intr = max(b1[1] + b1[3], b2[1] + b2[3])
+    # ------------------------------------------
+    # Detection of persons 
+    # ------------------------------------------
+    bboxes = haar_cascade.detectMultiScale(image_gray, scaleFactor=1.2, minNeighbors=10, minSize=(100,100))
 
-                w_intr = x2_intr - x1_intr
-                h_intr = y2_intr - y1_intr
-                A_intr = w_intr * h_intr
+    # ------------------------------------------
+    # Create Detections per haar cascade bbox
+    # ------------------------------------------
+    detections = []
+    for bbox in bboxes: 
+        x1, y1, w, h = bbox
+        detection = Detection(x1, y1, w, h, image_gray, id=detection_counter, stamp=stamp, face_recognizer = face_recognizer, people = people)
+        detection_counter += 1
+        detection.draw(image_gui)
+        detections.append(detection)
+        # cv2.imshow('detection ' + str(detection.id), detection.image  )
 
-                A_union = (b1[2] * b1[3]) + (b2[2] * b2[3]) - A_intr
+    # ------------------------------------------
+    # For each detection, see if there is a tracker to which it should be associated
+    # ------------------------------------------
+    for detection in detections: # cycle all detections
+        for tracker in trackers: # cycle all trackers
+            if tracker.active:
+                tracker_bbox = tracker.detections[-1]
+                iou = detection.computeIOU(tracker_bbox)
+                # print('IOU( T' + str(tracker.id) + ' D' + str(detection.id) + ' ) = ' + str(iou))
+                if iou > iou_threshold: # associate detection with tracker 
+                    tracker.addDetection(detection, image_gray)
 
-                iou = A_intr / A_union
+    # ------------------------------------------
+    # Track using template matching
+    # ------------------------------------------
+    for tracker in trackers: # cycle all trackers
+        last_detection_id = tracker.detections[-1].id
+        print(last_detection_id)
+        detection_ids = [d.id for d in detections]
+        if not last_detection_id in detection_ids:
+            print('Tracker ' + str(tracker.id) + ' Doing some tracking')
+            tracker.track(image_gray)
 
-                if iou > 0.8:  #check if the diference is less than 20%
-                    tracking_ppl[track_id] = b1  #add an id to a specific box
-                    track_id += 1
-    else:
-        tracking_ppl_copy = tracking_ppl.copy()
-        bbox_cur_frame_copy = bbox_cur_frame.copy()
+    # ------------------------------------------
+    # Deactivate Tracker if no detection for more than T
+    # ------------------------------------------
+    for tracker in trackers: # cycle all trackers
+        tracker.updateTime(stamp)
 
-        for ppl_id, b2 in tracking_ppl_copy.items():  #check the already exixtent boxes by id
-            ppl_exists = False
-            for b1 in bbox_cur_frame_copy:    #Compare the areas again
-                x1_intr = min(b1[0], b2[0])             
-                y1_intr = min(b1[1], b2[1])             
-                x2_intr = max(b1[0] + b1[2], b2[0] + b2[2]) 
-                y2_intr = max(b1[1] + b1[3], b2[1] + b2[3])
+    # ------------------------------------------
+    # Create Tracker for each detection
+    # ------------------------------------------
+    for detection in detections:
+        if not detection.assigned_to_tracker:
+            tracker = Tracker(detection, id=tracker_counter, image=image_gray, person = detection.person)
+            tracker_counter += 1
+            trackers.append(tracker)
 
-                w_intr = x2_intr - x1_intr
-                h_intr = y2_intr - y1_intr
-                A_intr = w_intr * h_intr
+    # ------------------------------------------
+    # Draw stuff
+    # ------------------------------------------
 
-                A_union = (b1[2] * b1[3]) + (b2[2] * b2[3]) - A_intr
-
-                iou = A_intr / A_union
-
-                if iou > 0.8:
-                    tracking_ppl[ppl_id] = b1   #update the bbox with the same id
-                    ppl_exists = True
-                    if b1 in bbox_cur_frame:
-                        bbox_cur_frame.remove(b1)
-                    continue
-
-            if not ppl_exists:
-                tracking_ppl.pop(ppl_id)
-        
-        for b in bbox_cur_frame:
-            tracking_ppl[track_id] = b
-            track_id += 1
-                
-
-
-    for ppl_id, b in tracking_ppl.items():
-        cv.putText(image_gui, str(ppl_id), (b[0], b[1]), 0, 1, (0,0,255), 2)
-
-    stamp = float(capture.get(cv.CAP_PROP_POS_MSEC))/1000
-
-
-
-
-
+    # Draw trackers
+    for tracker in trackers:
+        if tracker.active:
+            tracker.draw(image_gui)
 
 
+        # win_name= 'T' + str(tracker.id) + ' template'
+        # cv2.imshow(win_name, tracker.template)
 
+    # for tracker in trackers:
+        # print(tracker)
 
-    # for (x,y,w,h) in face_rect:
-    #     face_roi = gray[y:y+w, x:x+h]
-    #     aa = cv.resize(joao_roi,w,h)
-    #     errorL2 = cv.norm( face_roi, joao_roi, cv.NORM_L2 )
-    #     similarity = 1 - errorL2 / ( h * w )
-    #     if similarity > 0.7:
-    #         cv.rectangle(image_gui, (x,y), (x+w,y+h), (0,255,0), 2)
-    #     else:
-    #         cv.rectangle(image_gui, (x,y), (x+w,y+h), (0,0,255), 2)
+    cv2.imshow('window_name',image_gui) # show the image
 
-
-    bbox_last_frame = bbox_cur_frame.copy()
-        
-    cv.imshow('camara', image_gui)
-
-    if cv.waitKey(20) & 0xFF ==ord('g'):
+    if cv2.waitKey(50) == ord('q'):
         break
 
+    frame_counter += 1
 
-capture.release()
-cv.destroyAllWindows
+
+# ------------------------------------------
+# Termination
+# ------------------------------------------
+cap.release()
+cv2.destroyAllWindows()
+        
+
+
+
+
