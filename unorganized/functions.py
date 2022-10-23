@@ -7,19 +7,20 @@ from turtle import color
 import cv2
 import numpy as np
 from colorama import Fore, Style, Back
+import face_recognition
 
 
 class BoundingBox:
     
-    def __init__(self, x1, y1, w, h):
+    def __init__(self, y1, x2, y2, x1):
         self.x1 = x1
         self.y1 = y1
-        self.w = w
-        self.h = h
-        self.area = w * h
+        self.w = x2 - x1
+        self.h = y2 - y1
+        self.area = self.w * self.h
 
-        self.x2 = self.x1 + self.w
-        self.y2 = self.y1 + self.h
+        self.x2 = x2
+        self.y2 = y2
 
 
     def computeIOU(self, bbox2):
@@ -44,17 +45,20 @@ class BoundingBox:
 
 class Detection(BoundingBox):
 
-    def __init__(self, x1, y1, w, h, image_full, id, stamp, face_recognizer, people):
+    def __init__(self, x1, y1, w, h, image_full, id, stamp, face_encoding, our_faces, our_names):
         super().__init__(x1,y1,w,h) # call the super class constructor        
         self.id = id
         self.stamp = stamp
         self.image =self.extractSmallImage(image_full)
         self.assigned_to_tracker = False
-        label, confidence = face_recognizer.predict(self.image)
-        if confidence < 60:
-            self.person = people[label]
-        else:
-            self.person = 'unknown person'
+        # See if the face is a match for the known face(s)
+        found_face = face_recognition.compare_faces(our_faces, face_encoding)
+        self.person = 'new name'
+        
+        face_distances = face_recognition.face_distance(our_faces, face_encoding)
+        match_id = np.argmin(face_distances)
+        if found_face[match_id]:
+            self.person = our_names[match_id]
 
     def draw(self, image_gui, color=(255,0,0)):
         cv2.rectangle(image_gui,(self.x1,self.y1),(self.x2, self.y2),color,3)

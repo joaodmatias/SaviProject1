@@ -3,20 +3,27 @@ import numpy as np
 from copy import deepcopy
 import cv2
 from functions import Detection, Tracker
+import face_recognition
 
-#Definir haar cascade
-haar_cascade = cv.CascadeClassifier(r'Trabalho1\haar_face.xml')
 
 #Import train
-people = ['Joao', 'Matias']
-face_recognizer = cv.face.LBPHFaceRecognizer_create()
-face_recognizer.read(r'Trabalho1\face_trained.yml')
+matias = face_recognition.load_image_file(f'faces\Matias.jpg')
+matias_encoding = face_recognition.face_encodings(matias)[0]
+
+vicente = face_recognition.load_image_file(f"faces\Vicente.jpg")
+vicente_encoding = face_recognition.face_encodings(vicente)[0]
+
+our_faces = [matias_encoding, vicente_encoding]
+our_names = ['Matias', 'Vicente']
 
 #essential variables
+face_locations = []
+face_encodings = []
 detection_counter = 0
 tracker_counter = 0
 trackers = []
 iou_threshold = 0.8
+names = []
 
 #Execution
 cap = cv.VideoCapture(0)
@@ -26,8 +33,11 @@ while True:
     #Get the frame
     ret, frame_rgb = cap.read()
     frame = cv.flip(frame_rgb, 1)
+
     frame_counter +=1
-    image_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+    #Convert form bgr to rgb
+    image_rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
     image_gui = deepcopy(frame)
 
     if ret == False:
@@ -38,15 +48,16 @@ while True:
     # ------------------------------------------
     # Detection of persons 
     # ------------------------------------------
-    bboxes = haar_cascade.detectMultiScale(image_gray, scaleFactor=1.2, minNeighbors=10, minSize=(100,100))
+    bboxes = face_recognition.face_locations(image_rgb)
 
     # ------------------------------------------
     # Create Detections per haar cascade bbox
     # ------------------------------------------
     detections = []
     for bbox in bboxes: 
-        x1, y1, w, h = bbox
-        detection = Detection(x1, y1, w, h, image_gray, id=detection_counter, stamp=stamp, face_recognizer = face_recognizer, people = people)
+        y1, x2, y2, x1 = bbox
+        face_encoding = face_recognition.face_encodings(image_rgb, bbox)
+        detection = Detection(y1, x2, y2, x1, image_rgb, id=detection_counter, stamp=stamp, face_encoding=face_encoding, our_faces=our_faces, our_names=our_names)
         detection_counter += 1
         detection.draw(image_gui)
         detections.append(detection)
