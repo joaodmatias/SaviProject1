@@ -12,15 +12,15 @@ import face_recognition
 
 class BoundingBox:
     
-    def __init__(self, y1, x2, y2, x1):
+    def __init__(self, x1, y1, w, h):
         self.x1 = x1
         self.y1 = y1
-        self.w = x2 - x1
-        self.h = y2 - y1
-        self.area = self.w * self.h
+        self.w = w
+        self.h = h
+        self.area = w * h
 
-        self.x2 = x2
-        self.y2 = y2
+        self.x2 = self.x1 + self.w
+        self.y2 = self.y1 + self.h
 
 
     def computeIOU(self, bbox2):
