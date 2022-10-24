@@ -1,7 +1,7 @@
 # Face detection and recognition project
 Sistemas Avançados de Visão industrial
 
-Made by:
+Made by:<br />
 João Matias nº93098<br />
 João Conceição nº93439<br />
 
