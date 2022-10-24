@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 
-import csv
 from copy import deepcopy
-from turtle import color
+from email.mime import image
+from pickle import TRUE
 
 import cv2
 import numpy as np
 from colorama import Fore, Style, Back
 import face_recognition
 import math
+import pyttsx3
 
 
-def face_confidence(face_distance, face_match_threshold=0.6):
-    range = (1.0 - face_match_threshold)
-    linear_val = (1.0 - face_distance) / (range * 2.0)
+def face_match_percentage(face_distance):
+    threshold = 0.7
+    linear_val = (1 - face_distance) / ((1 - threshold) * 2)
 
-    if face_distance > face_match_threshold:
+    if face_distance > threshold:
         return linear_val * 100
     else:
-        value = (linear_val + ((1.0 - linear_val) * math.pow((linear_val - 0.5) * 2, 0.2))) * 100
+        value = (linear_val + ((1 - linear_val) * math.pow((linear_val - 0.5) * 2, 0.2))) * 100
         return value
 
 
@@ -54,10 +55,9 @@ class BoundingBox:
         return image_full[self.y1:self.y1+self.h, self.x1:self.x1+self.w]
 
 
-
 class Detection(BoundingBox):
 
-    def __init__(self, x1, y1, w, h, image_full, id, stamp, face_encoding, our_faces, our_names):
+    def __init__(self, x1, y1, w, h, image_full, id, stamp, face_encoding, our_faces, our_names, first_time):
         super().__init__(x1,y1,w,h) # call the super class constructor        
         self.id = id
         self.stamp = stamp
@@ -69,27 +69,35 @@ class Detection(BoundingBox):
         face_distances = face_recognition.face_distance(our_faces, face_encoding)
         match_id = np.argmin(face_distances)
         if found_face[match_id]:
-            confidence = face_confidence(face_distances[match_id])
+            confidence = face_match_percentage(face_distances[match_id])
             if confidence > 80:
                 self.person = our_names[match_id]
+                if first_time:
+                    engine = pyttsx3.init()
+                    engine.say("Hello" + self.person)
+                    engine.runAndWait()
+                    #engine.stop()
+
             else:
-                person = input('Hello what s your name?')
+                person = input("Hello there! What's your name?")
                 self.person = str(person)
                 our_names.append(person)
                 our_faces.append(face_encoding)
 
         else:
-            person = input('Hello what s your name?')
+            person = input("Hello there! What's your name?")
             self.person = str(person)
             our_names.append(person)
             our_faces.append(face_encoding)
-
+            cv2.imshow('wtv', image_full[self.y1:self.y1+self.h, self.x1:self.x1+self.w])
+            print('____'+self.person+'_____')
+            cv2.imwrite(f"/home/matias/Desktop/TP1/SaviProject1/faces/{self.person}.png", image_full[self.y1:self.y1+self.h, self.x1:self.x1+self.w])
 
     def draw(self, image_gui, color=(255,0,0)):
         cv2.rectangle(image_gui,(self.x1,self.y1),(self.x2, self.y2),color,3)
 
-        image = cv2.putText(image_gui, 'd' , (self.x1, self.y1-5), cv2.FONT_HERSHEY_SIMPLEX, 
-                        1, color, 2, cv2.LINE_AA)
+        #cv2.putText(image_gui, 'd' , (self.x1, self.y1-5), cv2.FONT_HERSHEY_SIMPLEX, 
+         #               1, color, 2, cv2.LINE_AA)
 
 
 class Tracker():
@@ -158,13 +166,6 @@ class Tracker():
 
         ret, bbox = self.tracker.update(image)
         x1,y1,w,h = bbox
-
-#         h,w = self.template.shape
-#         result = cv2.matchTemplate(image, self.template, cv2.TM_CCOEFF_NORMED)
-#         _, max_val, _, max_loc = cv2.minMaxLoc(result)
-# 
-#         x1 = max_loc[0] 
-#         y1 = max_loc[1] 
 
         bbox = BoundingBox(x1, y1, w, h)
         self.bboxes.append(bbox)
