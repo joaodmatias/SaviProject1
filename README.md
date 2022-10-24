@@ -2,8 +2,8 @@
 Sistemas Avançados de Visão industrial
 
 Made by:
-João Matias nº93098
-João Conceição nº93439
+/nJoão Matias nº93098
+/nJoão Conceição nº93439
 
 
 It is possible to Detect the faces that appears on the camera in real time, that faces may be recognized and be associated with a premade database that only have the members of the group. If the face on the camera is not at the database the user will be asked for the name of the new person, after the user input the name an image of the person and the new name will be added to the database.
