@@ -11,3 +11,6 @@ This program makes it possible to detect faces that appear on camera in real tim
 After the recognition of the person, the detection will be associated with a tracker that will be disabled if it goes 2 seconds without a new associated detection. <br />
 
 Everytime a new person joins the group, the system will say "Hello" to that person.
+
+
+![image](https://user-images.githubusercontent.com/92520749/197636182-44f35230-e14a-4fce-aa17-a7893d49048a.png)
