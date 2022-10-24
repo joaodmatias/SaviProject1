@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
+import csv
 from copy import deepcopy
-from email.mime import image
-from pickle import TRUE
+from turtle import color
 
 import cv2
 import numpy as np
@@ -12,14 +12,14 @@ import math
 import pyttsx3
 
 
-def face_match_percentage(face_distance):
-    threshold = 0.7
-    linear_val = (1 - face_distance) / ((1 - threshold) * 2)
+def face_confidence(face_distance, face_match_threshold=0.6):
+    range = (1.0 - face_match_threshold)
+    linear_val = (1.0 - face_distance) / (range * 2.0)
 
-    if face_distance > threshold:
+    if face_distance > face_match_threshold:
         return linear_val * 100
     else:
-        value = (linear_val + ((1 - linear_val) * math.pow((linear_val - 0.5) * 2, 0.2))) * 100
+        value = (linear_val + ((1.0 - linear_val) * math.pow((linear_val - 0.5) * 2, 0.2))) * 100
         return value
 
 
@@ -55,56 +55,50 @@ class BoundingBox:
         return image_full[self.y1:self.y1+self.h, self.x1:self.x1+self.w]
 
 
+
 class Detection(BoundingBox):
 
-    def __init__(self, x1, y1, w, h, image_full, id, stamp, face_encoding, our_faces, our_names, first_time):
+    def __init__(self, x1, y1, w, h, image_full, id, stamp, face_encoding, our_faces, our_names):
         super().__init__(x1,y1,w,h) # call the super class constructor        
         self.id = id
         self.stamp = stamp
         self.image =self.extractSmallImage(image_full)
         self.assigned_to_tracker = False
+
         # See if the face is a match for the known face(s)
         found_face = face_recognition.compare_faces(our_faces, face_encoding)
-        
         face_distances = face_recognition.face_distance(our_faces, face_encoding)
         match_id = np.argmin(face_distances)
+
+        # If there is a known face assossiate the correspondent  name to the detection
         if found_face[match_id]:
-            confidence = face_match_percentage(face_distances[match_id])
+            confidence = face_confidence(face_distances[match_id])
             if confidence > 80:
                 self.person = our_names[match_id]
-                if first_time:
-                    engine = pyttsx3.init()
-                    engine.say("Hello" + self.person)
-                    engine.runAndWait()
-                    #engine.stop()
 
+        # If the face is unknown ask for a name and append the name and the face encodgion to the database
             else:
-                person = input("Hello there! What's your name?")
+                person = input('Hello what s your name?')
                 self.person = str(person)
                 our_names.append(person)
                 our_faces.append(face_encoding)
 
         else:
-            person = input("Hello there! What's your name?")
+            person = input('Hello what s your name?')
             self.person = str(person)
             our_names.append(person)
             our_faces.append(face_encoding)
-            cv2.imshow('wtv', image_full[self.y1:self.y1+self.h, self.x1:self.x1+self.w])
-            print('____'+self.person+'_____')
-            cv2.imwrite(f"/home/matias/Desktop/TP1/SaviProject1/faces/{self.person}.png", image_full[self.y1:self.y1+self.h, self.x1:self.x1+self.w])
 
+        #Colocar d na imagem para quando há uma nova deteção
     def draw(self, image_gui, color=(255,0,0)):
-        cv2.rectangle(image_gui,(self.x1,self.y1),(self.x2, self.y2),color,3)
-
-        #cv2.putText(image_gui, 'd' , (self.x1, self.y1-5), cv2.FONT_HERSHEY_SIMPLEX, 
-         #               1, color, 2, cv2.LINE_AA)
+        image = cv2.putText(image_gui, 'd' , (self.x1, self.y1-5), cv2.FONT_HERSHEY_SIMPLEX, 
+                        1, color, 2, cv2.LINE_AA)
 
 
 class Tracker():
 
     def __init__(self, detection, id, image, person):
         self.id = id
-        self.template = None
         self.active = True
         self.bboxes = []
         self.detections = []
@@ -113,6 +107,12 @@ class Tracker():
         self.person = person
 
         self.addDetection(detection, image)
+
+    # 
+        engine = pyttsx3.init()
+        engine.say("Hello" + self.person)
+        engine.runAndWait()
+        engine.stop()
 
 
 
@@ -126,15 +126,6 @@ class Tracker():
         if self.time_since_last_detection > 2: # deactivate tracker        
             self.active = False
 
-    def drawLastDetection(self, image_gui, color=(255,0,255)):
-        last_detection = self.detections[-1] # get the last detection
-
-        cv2.rectangle(image_gui,(last_detection.x1,last_detection.y1),
-                      (last_detection.x2, last_detection.y2),color,3)
-
-        image = cv2.putText(image_gui, str(self.person) + ' T' + str(self.id), 
-                            (last_detection.x2-40, last_detection.y1-5), cv2.FONT_HERSHEY_SIMPLEX, 
-                        1, color, 2, cv2.LINE_AA)
 
     def draw(self, image_gui, color=(255,0,255)):
 
@@ -167,15 +158,6 @@ class Tracker():
         ret, bbox = self.tracker.update(image)
         x1,y1,w,h = bbox
 
+
         bbox = BoundingBox(x1, y1, w, h)
         self.bboxes.append(bbox)
-
-        # Update template using new bbox coordinates
-        self.template = bbox.extractSmallImage(image)
-        
-    def __str__(self):
-        text =  'T' + str(self.id) + ' Detections = ['
-        for detection in self.detections:
-            text += str(detection.id) + ', '
-
-        return text
